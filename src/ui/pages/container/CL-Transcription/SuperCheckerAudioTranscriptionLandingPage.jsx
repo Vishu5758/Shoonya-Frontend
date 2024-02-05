@@ -1,10 +1,7 @@
-// AudioTranscriptionLandingPage
-import ReactQuill, { Quill } from 'react-quill';
+import ReactQuill from 'react-quill';
 import "../../../../ui/pages/container/Label-Studio/cl_ui.css"
 import 'quill/dist/quill.bubble.css';
 import React, {
-  memo,
-  useCallback,
   useEffect,
   useMemo,
   useState,
@@ -14,15 +11,11 @@ import { IndicTransliterate } from "@ai4bharat/indic-transliterate";
 import TranscriptionRightPanel from "./TranscriptionRightPanel";
 import {
   Box,
-  IconButton,
-  Tooltip,
   Typography,
   Grid,
   Button,
-  TextField,
   Slider, Stack
 } from "@mui/material";
-import WidgetsOutlinedIcon from "@mui/icons-material/WidgetsOutlined";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import Timeline from "./TimeLine";
 import AudioPanel from "./AudioPanel";
@@ -46,6 +39,7 @@ import SuperCheckerStageButtons from "../../component/CL-Transcription/SuperChec
 import ArrowDropDownIcon from "@mui/icons-material/ArrowDropDown";
 import ArrowRightIcon from "@mui/icons-material/ArrowRight";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import UserMappedByRole from '../../../../utils/UserMappedByRole/UserMappedByRole';
 import getTaskAssignedUsers from '../../../../utils/getTaskAssignedUsers';
 import LightTooltip from "../../component/common/Tooltip";
 
@@ -53,13 +47,11 @@ const SuperCheckerAudioTranscriptionLandingPage = () => {
   const classes = AudioTranscriptionLandingStyle();
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  let location = useLocation();
   const { projectId, taskId } = useParams();
   const [loading, setLoading] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [currentIndex, setCurrentIndex] = useState(-1);
-  const [annotationtext,setannotationtext] = useState('');
   const [currentSubs, setCurrentSubs] = useState();
   const [loadtime, setloadtime] = useState(new Date());
   const [textBox, settextBox] = useState("");
@@ -93,7 +85,6 @@ const SuperCheckerAudioTranscriptionLandingPage = () => {
   const [speakerBox, setSpeakerBox] = useState("");
 
   let labellingMode = localStorage.getItem("labellingMode");
-  // const subs = useSelector((state) => state.commonReducer.subtitles);
   const result = useSelector((state) => state.commonReducer.subtitles);
 
   const AnnotationsTaskDetails = useSelector(
@@ -112,34 +103,10 @@ const SuperCheckerAudioTranscriptionLandingPage = () => {
   const [assignedUsers, setAssignedUsers] = useState(null);
   const [autoSave, setAutoSave] = useState(true);
   const [autoSaveTrigger, setAutoSaveTrigger] = useState(false);
-
-  // useEffect(() => {
-  //   let intervalId;
-
-  //   const updateTimer = () => {
-  //     ref.current = ref.current + 1;
-  //   };
-
-  //   intervalId = setInterval(updateTimer, 1000);
-
-  //   setInterval(() => {
-  //     clearInterval(intervalId);
-  //     ref.current = 0;
-
-  //     intervalId = setInterval(updateTimer, 1000);
-  //   }, 60 * 1000);
-
-  //   return () => {
-  //     const apiObj = new UpdateTimeSpentPerTask(taskId, ref.current);
-  //     dispatch(APITransport(apiObj));
-  //     clearInterval(intervalId);
-  //     ref.current = 0;
-  //   };
-  // }, []);
+  const [selectedUserId, setSelectedUserId] = useState(-1);
 
   const filterAnnotations = (annotations, user) => {
     let disableSkip = false;
-    let disableAutoSave = false;
     let filteredAnnotations = annotations;
     let userAnnotation = annotations.find((annotation) => {
       return (
@@ -167,22 +134,22 @@ const SuperCheckerAudioTranscriptionLandingPage = () => {
         filteredAnnotations = annotations.filter(
           (value) => value.annotation_type === 2
         );
-        if(filteredAnnotations[0].annotation_status === "rejected")
+        if (filteredAnnotations[0].annotation_status === "rejected")
           setAutoSave(false);
       }
     } else if ([4, 5, 6].includes(user.role)) {
       filteredAnnotations = annotations.filter((a) => a.annotation_type === 3);
+      setAutoSave(false);
       disableSkip = true;
     }
     setAnnotations(filteredAnnotations);
     setdisableSkip(disableSkip);
-    return [filteredAnnotations, disableSkip, disableAutoSave];
+    // return [filteredAnnotations, disableSkip];
   };
 
   useEffect(() => {
     filterAnnotations(AnnotationsTaskDetails, userData);
   }, [AnnotationsTaskDetails, userData]);
-  //console.log(disableSkip);
 
   const handleCollapseClick = () => {
     !showNotes && setShowStdTranscript(false);
@@ -190,7 +157,7 @@ const SuperCheckerAudioTranscriptionLandingPage = () => {
   };
 
 
-   useEffect(() => {
+  useEffect(() => {
     const hasEmptyText = result?.some((element) => element.text?.trim() === "");
     const hasEmptySpeaker = result?.some(
       (element) => element.speaker_id?.trim() === ""
@@ -233,9 +200,9 @@ const SuperCheckerAudioTranscriptionLandingPage = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const handleAutosave = async () => {
     setAutoSaveTrigger(false);
-    if(!autoSave) return;
+    if (!autoSave) return;
     const currentAnnotation = AnnotationsTaskDetails?.find((a) => a.completed_by === userData.id && a.annotation_type === 3);
-    if(!currentAnnotation) return;
+    if (!currentAnnotation) return;
     const reqBody = {
       task_id: taskId,
       auto_save: true,
@@ -277,20 +244,10 @@ const SuperCheckerAudioTranscriptionLandingPage = () => {
   useEffect(() => {
     if(!autoSave) return;
 
-    const handleUpdateTimeSpent = (time = 60) => {
-      // const apiObj = new UpdateTimeSpentPerTask(taskId, time);
-      // dispatch(APITransport(apiObj));
-    };
-
     saveIntervalRef.current = setInterval(() => setAutoSaveTrigger(true), 60 * 1000);
-    timeSpentIntervalRef.current = setInterval(
-      handleUpdateTimeSpent,
-      60 * 1000
-    );
 
     const handleBeforeUnload = (event) => {
       setAutoSaveTrigger(true);
-      handleUpdateTimeSpent(ref.current);
       event.preventDefault();
       event.returnValue = "";
       ref.current = 0;
@@ -312,31 +269,23 @@ const SuperCheckerAudioTranscriptionLandingPage = () => {
     document.addEventListener('keydown', handleInteraction);
     const interval = setInterval(checkInactivity, 1000);
 
-    if(!isActive){
-      handleUpdateTimeSpent(ref.current);
+    if (!isActive) {
       clearInterval(saveIntervalRef.current);
-      clearInterval(timeSpentIntervalRef.current);
       ref.current = 0;
     }
-  
+
     const handleVisibilityChange = () => {
       if (!document.hidden) {
         // Tab is active, restart the autosave interval
         saveIntervalRef.current = setInterval(() => setAutoSaveTrigger(true), 60 * 1000);
-        timeSpentIntervalRef.current = setInterval(
-          handleUpdateTimeSpent,
-          60 * 1000
-        );
       } else {
         setAutoSaveTrigger(true);
-        handleUpdateTimeSpent(ref.current);
         // Tab is inactive, clear the autosave interval
-        clearInterval(saveIntervalRef.current);
-        clearInterval(timeSpentIntervalRef.current);
+        clearInterval(saveIntervalRef.current)
         ref.current = 0;
       }
     };
-    
+
     window.addEventListener("beforeunload", handleBeforeUnload);
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
@@ -345,7 +294,6 @@ const SuperCheckerAudioTranscriptionLandingPage = () => {
       document.removeEventListener('keydown', handleInteraction);
       clearInterval(interval);
       clearInterval(saveIntervalRef.current);
-      clearInterval(timeSpentIntervalRef.current);
       window.removeEventListener("beforeunload", handleBeforeUnload);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
@@ -395,17 +343,6 @@ const SuperCheckerAudioTranscriptionLandingPage = () => {
     dispatch(setSubtitles(sub, C.SUBTITLES));
 
     setStdTranscription(standardisedTranscription);
-    // const newSub = cloneDeep(sub);
-
-    // dispatch(setCurrentPage(transcriptPayload?.current));
-    // dispatch(setNextPage(transcriptPayload?.next));      // dispatch(setPreviousPage(transcriptPayload?.previous));
-    // dispatch(setTotalPages(transcriptPayload?.count));
-    // dispatch(setSubtitlesForCheck(newSub));
-    // dispatch(setCompletedCount(transcriptPayload?.completed_count));
-    // dispatch(setRangeStart(transcriptPayload?.start));
-    // dispatch(setRangeEnd(transcriptPayload?.end));
-
-    // eslint-disable-next-line
   }, [annotations]);
 
   useMemo(() => {
@@ -429,19 +366,36 @@ const SuperCheckerAudioTranscriptionLandingPage = () => {
     getAnnotationsTaskData(taskId);
     getProjectDetails();
     getTaskData(taskId);
-    console.log(
-      localStorage.getItem("Stage") === "review",
-      "StageStageStageStage"
-    );
   }, []);
+
   const getProjectDetails = () => {
     const projectObj = new GetProjectDetailsAPI(projectId);
     dispatch(APITransport(projectObj));
   };
 
   useEffect(() => {
+    if (selectedUserId === -1) return;
+    if (selectedUserId === userData?.id) {
+      setFilterMessage("");
+      setDisableBtns(false);
+      setAutoSave(true);
+      getAnnotationsTaskData(taskId);
+      return;
+    }
+    const userAnnotations = AnnotationsTaskDetails?.filter((item) => item.completed_by === selectedUserId);
+    if (userAnnotations.length) {
+      setAutoSave(false);
+      setDisableBtns(true);
+      setFilterMessage(`This is the ${["Annotator", "Reviewer", "Super Checker"][userAnnotations[0].annotation_type - 1]}'s Annotation in read only mode`);
+      setAnnotations(userAnnotations);
+    }
+  }, [selectedUserId, userData, taskId]);
+
+  useEffect(() => {
     const showAssignedUsers = async () => {
-      getTaskAssignedUsers(taskDetails).then(res => setAssignedUsers(res));
+      getTaskAssignedUsers(taskDetails).then(res => {
+        setAssignedUsers(res);
+      });
     }
     taskDetails?.id && showAssignedUsers();
   }, [taskDetails]);
@@ -452,25 +406,12 @@ const SuperCheckerAudioTranscriptionLandingPage = () => {
     }
   }, [AnnotationsTaskDetails]);
 
-  /* useEffect(() => {
-    if(Object.keys(userData).includes("prefer_cl_ui") && !(userData.prefer_cl_ui) && ProjectDetails?.project_type.includes("AudioTranscription")) {
-      const changeUI = async() => {
-        handleAutosave().then(navigate(`/projects/${projectId}/SuperChecker/${taskId}`))
-      };
-      changeUI();
-    }
-  }, [userData]); */
-  
   const tasksComplete = (id) => {
     if (id) {
-      // resetNotes();
-      // navigate(`/projects/${projectId}/task/${id}`, {replace: true});
       navigate(
         `/projects/${projectId}/SuperCheckerAudioTranscriptionLandingPage/${id}`
       );
     } else {
-      // navigate(-1);
-      // resetNotes();
       setSnackbarInfo({
         open: true,
         message: "No more tasks to label",
@@ -528,7 +469,6 @@ const SuperCheckerAudioTranscriptionLandingPage = () => {
     id,
     lead_time,
     parentannotation,
-    reviewNotesValue,
   ) => {
     setLoading(true);
     setAutoSave(false);
@@ -549,7 +489,7 @@ const SuperCheckerAudioTranscriptionLandingPage = () => {
       ["draft", "skipped", "rejected"].includes(value) ||
       (["validated", "validated_with_changes"].includes(value) && L1Check && L2Check)
     ) {
-      if(value === "rejected") PatchAPIdata["result"] = [];
+      if (value === "rejected") PatchAPIdata["result"] = [];
       const TaskObj = new PatchAnnotationAPI(id, PatchAPIdata);
       const res = await fetch(TaskObj.apiEndPoint(), {
         method: "PATCH",
@@ -562,10 +502,10 @@ const SuperCheckerAudioTranscriptionLandingPage = () => {
           onNextAnnotation(resp.task);
         }
         setSnackbarInfo({
-            open: true,
-            message: resp?.message,
-            variant: "success",
-          });
+          open: true,
+          message: resp?.message,
+          variant: "success",
+        });
       } else {
         setAutoSave(true);
         setSnackbarInfo({
@@ -582,7 +522,7 @@ const SuperCheckerAudioTranscriptionLandingPage = () => {
           message: "Please Enter All The Transcripts",
           variant: "error",
         });
-      } else if(speakerBox) {
+      } else if (speakerBox) {
         setSnackbarInfo({
           open: true,
           message: "Please Select The Speaker",
@@ -725,7 +665,6 @@ const SuperCheckerAudioTranscriptionLandingPage = () => {
   };
   const modules = {
     toolbar: [
-
       [{ size: [] }],
       ['bold', 'italic', 'underline', 'strike'],
       [{ 'color': [] }],
@@ -892,22 +831,47 @@ useEffect(() => {
             onClick={() => {
               localStorage.removeItem("labelAll");
               navigate(`/projects/${projectId}`);
-              //window.location.replace(`/#/projects/${projectId}`);
-              //window.location.reload();
             }}
           >
             Back to Project
           </Button>
           <Box
-            // style={{ height: videoDetails?.video?.audio_only ? "100%" : "" }}
             className={classes.videoBox}
           >
             <Typography sx={{mt: 2, ml: 4, color: "grey"}}>
               Task #{taskDetails?.id}
               <LightTooltip
-                title={assignedUsers ? assignedUsers : ""}
+                disableFocusListener={true}
+                title={assignedUsers ? 
+                  <div style={{
+                    display: "flex",
+                    padding: "8px 0px",
+                    flexDirection: "column",
+                    gap: "4px",
+                    alignItems: "flex-start"
+                  }}>
+                    {/* <Button
+                      style={{ display: "inline", fontSize: 12, color: "black", border: selectedUserId < 0 ? "1px solid rgba(0, 0, 0, 0.2)" : "none" }}
+                      onClick={() => setSelectedUserId(-1)}>
+                      Default (Reset filters)
+                    </Button> */}
+                    {assignedUsers.map((u, idx) => u &&
+                      <Button
+                        style={{
+                          display: "inline",
+                          fontSize: 12,
+                          color: "black",
+                          border: (selectedUserId === u.id || (selectedUserId === -1 && userData?.id === u.id))
+                            ? "1px solid rgba(0, 0, 0, 0.2)" : "none"
+                        }}
+                        onClick={() => setSelectedUserId(u.id)}>
+                        {UserMappedByRole(idx + 1).element} {u.email}
+                      </Button>
+                    )}
+                  </div>
+                  : ""}
               >
-                <InfoOutlinedIcon sx={{mb: "-4px", ml: "2px", color: "grey"}}/>
+                <InfoOutlinedIcon sx={{ mb: "-4px", ml: "2px", color: "grey" }} />
               </LightTooltip>
             </Typography>
             <SuperCheckerStageButtons
@@ -917,6 +881,8 @@ useEffect(() => {
               disableSkip={disableSkip}
               anchorEl={anchorEl}
               setAnchorEl={setAnchorEl}
+              filterMessage={filterMessage}
+              disableBtns={disableBtns}
             />
             <AudioPanel
               setCurrentTime={setCurrentTime}
@@ -943,7 +909,7 @@ useEffect(() => {
                     setDuration(e.target.value);
                     player.currentTime += 0.01;
                     player.currentTime -= 0.01;
-                  }}/>
+                  }} />
               </Stack>
               <Stack spacing={2} direction="row" sx={{ mb: 1, ml: 3 }} alignItems="center" justifyContent="flex-end" width="fit-content">
                 <Typography fontSize={14} fontWeight={"medium"} color="#555">
@@ -961,7 +927,7 @@ useEffect(() => {
                   valueLabelDisplay="auto"
                   onChange={(e) => {
                     player.playbackRate = e.target.value;
-                  }}/>
+                  }} />
               </Stack>
             </Grid>
             <Grid container spacing={1} sx={{ ml: 3 }}>
@@ -976,8 +942,8 @@ useEffect(() => {
                 >
                   Notes {reviewtext.trim().length === 0 ? "" : "*"}
                 </Button>
-        
-          
+
+
               </Grid>
               {stdTranscriptionSettings.enable &&
                 <Grid item>
@@ -996,50 +962,13 @@ useEffect(() => {
                 </Grid>}
             </Grid>
             <div
-              className={classes.collapse}    
+              className={classes.collapse}
               style={{
                 display: showNotes ? "block" : "none",
                 paddingBottom: "16px",
                 height: "175px", overflow: "scroll"
               }}
             >
-              {/* <Alert severity="warning" showIcon style={{marginBottom: '1%'}}>
-                {translate("alert.notes")}
-            </Alert> */}
-              {/* <TextField
-                multiline
-                placeholder="Place your remarks here ..."
-                label="Review Notes"
-                // value={notesValue}
-                // onChange={event=>setNotesValue(event.target.value)}
-                inputRef={reviewNotesRef}
-                rows={1}
-                maxRows={3}
-                inputProps={{
-                  style: { fontSize: "1rem" },
-                  readOnly: true,
-                }}
-                style={{ width: "99%", marginTop: "1%" }}
-                // ref={quillRef}
-              />
-
-              <TextField
-                multiline
-                placeholder="Place your remarks here ..."
-                label="Super Checker Notes"
-                // value={notesValue}
-                // onChange={event=>setNotesValue(event.target.value)}
-                inputRef={superCheckerNotesRef}
-                InputLabelProps={{
-                  shrink: true,
-                }}
-                rows={1}
-                maxRows={3}
-                inputProps={{
-                  style: { fontSize: "1rem" },
-                }}
-                style={{ width: "99%", marginTop: "1%" }}
-              /> */}
               <ReactQuill
                 ref={reviewNotesRef}
                 modules={modules}
@@ -1117,9 +1046,9 @@ useEffect(() => {
                 overflow: "auto",
                 height: "max-content"
               }}
-              >
-                <table style={{width: "100%", textAlign: 'center', fontSize: 'large'}}>
-                  <tr>
+            >
+              <table style={{ width: "100%", textAlign: 'center', fontSize: 'large' }}>
+                <tr>
                     <td>Wave:&nbsp;&nbsp;<input type='checkbox' checked={wave} onChange={() => {setWave(!wave)}}></input> <input type='color' value={waveColor} onChange={(e) => {setWaveColor(e.target.value)}}></input></td>
                     <td>Background:&nbsp;&nbsp;<input type='color' value={backgroundColor} onChange={(e) => {setBackgroundColor(e.target.value)}}></input></td>
                     <td colSpan={2}>Padding:&nbsp;&nbsp;<input type='color' value={paddingColor} onChange={(e) => {setPaddingColor(e.target.value)}}></input></td>

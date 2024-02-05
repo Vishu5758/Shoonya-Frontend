@@ -8,9 +8,10 @@ import ArrowRightIcon from '@mui/icons-material/ArrowRight';
 import CustomizedSnackbars from "../../component/common/Snackbar";
 import generateLabelConfig from '../../../../utils/LabelConfig/ConversationTranslation';
 import conversationVerificationLabelConfig from "../../../../utils/LabelConfig/ConversationVerification"
-import LightTooltip from "../../component/common/Tooltip";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import UserMappedByRole from '../../../../utils/UserMappedByRole/UserMappedByRole';
 import getTaskAssignedUsers from '../../../../utils/getTaskAssignedUsers';
+import LightTooltip from "../../component/common/Tooltip";
 
 import {
   getProjectsandTasks,
@@ -45,6 +46,7 @@ const LabelStudioWrapper = ({annotationNotesRef, loader, showLoader, hideLoader,
   const lsfRef = useRef();
   const navigate = useNavigate();
   const [labelConfig, setLabelConfig] = useState();
+  const [projectType, setProjectType] = useState();
   const [snackbar, setSnackbarInfo] = useState({
     open: false,
     message: "",
@@ -54,6 +56,8 @@ const LabelStudioWrapper = ({annotationNotesRef, loader, showLoader, hideLoader,
   const { projectId, taskId } = useParams();
   const userData = useSelector(state=>state.fetchLoggedInUserData.data)
   const [assignedUsers, setAssignedUsers] = useState(null);
+  const [selectedUserId, setSelectedUserId] = useState(null);
+  const [annotations, setAnnotations] = useState([]);
   let loaded = useRef();
 
   console.log("projectId, taskId", projectId, taskId);
@@ -80,8 +84,29 @@ const LabelStudioWrapper = ({annotationNotesRef, loader, showLoader, hideLoader,
   }, [])
 
   useEffect(() => {
+    if(!selectedUserId) return;
+    const userAnnotations = annotations?.filter((item) => item.completed_by === selectedUserId);
+    if(userAnnotations.length) {
+      LSFRoot(
+        rootRef,
+        lsfRef,
+        userData,
+        projectId,
+        taskData,
+        labelConfig,
+        userAnnotations,
+        [],
+        annotationNotesRef
+      );
+    }
+  }, [selectedUserId]);
+
+  useEffect(() => {
     const showAssignedUsers = async () => {
-      getTaskAssignedUsers(taskData).then(res => setAssignedUsers(res));
+      getTaskAssignedUsers(taskData).then(res => {
+        setAssignedUsers(res);
+        setSelectedUserId(res[0]?.id);
+      });
     }
     taskData?.id && showAssignedUsers();
   }, [taskData]);
@@ -380,6 +405,8 @@ const LabelStudioWrapper = ({annotationNotesRef, loader, showLoader, hideLoader,
               tempLabelConfig = labelConfigJS;
             }
             setLabelConfig(tempLabelConfig);
+            setProjectType(labelConfig.project_type);
+            setAnnotations(annotations);
             setTaskData(taskData);
             LSFRoot(
               rootRef,
@@ -452,7 +479,25 @@ const LabelStudioWrapper = ({annotationNotesRef, loader, showLoader, hideLoader,
           </Tooltip>}
           </Grid> */}
             <Grid item>
-              <LightTooltip title={assignedUsers ? assignedUsers : ""} >
+            <LightTooltip
+                title={assignedUsers ? 
+                  <div style={{
+                    display: "flex",
+                    padding: "8px 0px",
+                    flexDirection: "column",
+                    gap: "4px",
+                    alignItems: "flex-start"
+                  }}>
+                    {assignedUsers.map((u, idx) => u && 
+                      <Button
+                        style={{display: "inline", fontSize: 12, color: "black", border: selectedUserId === u.id ? "1px solid rgba(0, 0, 0, 0.2)" : "none"}}
+                        onClick={() => setSelectedUserId(u.id)}>
+                        {UserMappedByRole(idx + 1).element} {u.email}
+                      </Button>
+                    )}
+                  </div>
+                : ""}
+              >
                 <Button
                   type="default"
                   className="lsf-button"

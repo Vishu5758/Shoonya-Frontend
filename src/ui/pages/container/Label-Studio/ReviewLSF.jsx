@@ -33,6 +33,7 @@ import conversationVerificationLabelConfig from "../../../../utils/LabelConfig/C
 import GetProjectDetailsAPI from "../../../../redux/actions/api/ProjectDetails/GetProjectDetails";
 import APITransport from "../../../../redux/actions/apitransport/apitransport";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import UserMappedByRole from '../../../../utils/UserMappedByRole/UserMappedByRole';
 import getTaskAssignedUsers from '../../../../utils/getTaskAssignedUsers';
 import LightTooltip from "../../component/common/Tooltip";
 
@@ -235,6 +236,7 @@ const LabelStudioWrapper = ({
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const [labelConfig, setLabelConfig] = useState();
+  const [projectType, setProjectType] = useState();
   const [snackbar, setSnackbarInfo] = useState({
     open: false,
     message: "",
@@ -255,7 +257,7 @@ const LabelStudioWrapper = ({
   const [filterMessage, setFilterMessage] = useState(null);
   const [disableButton, setDisableButton] = useState(false);
   const [assignedUsers, setAssignedUsers] = useState(null);
- 
+  const [selectedUserId, setSelectedUserId] = useState(-1);
 
 
   //console.log("projectId, taskId", projectId, taskId);
@@ -325,19 +327,20 @@ const LabelStudioWrapper = ({
     annotationNotesRef,
     reviewNotesRef,
     superCheckerNotesRef,
-    projectType
+    projectType,
+    enableFilter=true,
   ) {
     let interfaces = [];
     if (predictions == null) predictions = [];
 
-    const [filteredAnnotations, disableLSFControls, disableSkip] = filterAnnotations(
+    const [filteredAnnotations, disableLSFControls, disableSkip] = enableFilter ? filterAnnotations(
       annotations,
       userData,
       setDisableBtns,
       setFilterMessage,
       setDisableButton,
       taskData
-    );
+    ) : [annotations, true, true];
     if (taskData.task_status === "freezed") {
       interfaces = [
         "panel",
@@ -863,6 +866,7 @@ const LabelStudioWrapper = ({
             tempLabelConfig = labelConfigJS;
           }
           setLabelConfig(tempLabelConfig);
+          setProjectType(labelConfig.project_type);
           setAnnotations(annotations);
           setTaskData(taskData);
           getTaskData(taskData);
@@ -1054,8 +1058,63 @@ const LabelStudioWrapper = ({
   }, [visible]);
 
   useEffect(() => {
+    if(selectedUserId === -1) return;
+    if(selectedUserId === userData?.id) {
+      const fetchUpdatedAnnotations = async () => {
+        getProjectsandTasks(projectId, taskId)
+          .then(([temp1, temp2, annotations, temp3]) => {
+            LSFRoot(
+              rootRef,
+              lsfRef,
+              userData,
+              projectId,
+              taskData,
+              labelConfig,
+              annotations,
+              [],
+              annotationNotesRef,
+              reviewNotesRef,
+              superCheckerNotesRef,
+              projectType
+            );
+          })
+      }
+      setAutoSave(true);
+      setFilterMessage(null);
+      setDisableBtns(false);
+      setDisableButton(false);
+      fetchUpdatedAnnotations();
+      return;
+    }
+    const userAnnotations = annotations?.filter((item) => item.completed_by === selectedUserId);
+    if(userAnnotations.length) {
+      setDisableButton(true);
+      setDisableBtns(true);
+      setAutoSave(false);
+      setFilterMessage(`This is the ${["Annotator", "Reviewer", "Super Checker"][userAnnotations[0].annotation_type - 1]}'s Annotation in read only mode`);
+      LSFRoot(
+        rootRef,
+        lsfRef,
+        userData,
+        projectId,
+        taskData,
+        labelConfig,
+        userAnnotations,
+        [],
+        annotationNotesRef,
+        reviewNotesRef,
+        superCheckerNotesRef,
+        projectType,
+        false
+      );
+    }
+  }, [selectedUserId, userData, taskId]);
+
+  useEffect(() => {
     const showAssignedUsers = async () => {
-      getTaskAssignedUsers(taskData).then(res => setAssignedUsers(res));
+      getTaskAssignedUsers(taskData).then(res => {
+        setAssignedUsers(res);
+      });
     }
     taskData?.id && showAssignedUsers();
   }, [taskData]);
@@ -1124,6 +1183,16 @@ const LabelStudioWrapper = ({
           {filterMessage}
         </Alert>
       )}
+      {projectType.includes("AudioTranscription") && (
+        <Alert severity="warning" sx={{ mb: 3 }}>
+          Do not delete first audio segment to prevent saving errors.
+        </Alert>
+      )}
+      {projectType.includes("OCR") && (
+        <Alert severity="warning" sx={{ mb: 3 }}>
+          Do not delete first bounding box to prevent saving errors.
+        </Alert>
+      )}
       {!loader && (
         <div
           style={{ display: "flex", justifyContent: "space-between" }}
@@ -1131,21 +1200,45 @@ const LabelStudioWrapper = ({
         >
           <div />
           <div>
-            <LightTooltip title={assignedUsers ? assignedUsers : ""}>
-              <Button
-                type="default"
-                className="lsf-button"
-                style={{
-                  minWidth: "40px",
-                  border: "1px solid #e6e6e6",
-                  color: "grey",
-                  pt: 1, pl: 1, pr: 1,
-                  borderBottom: "None",
-                }}
-                > 
-                  <InfoOutlinedIcon sx={{mb: "-3px", ml: "2px", color: "grey"}}/>
-              </Button>
-            </LightTooltip>
+          <LightTooltip
+                title={assignedUsers ? 
+                  <div style={{
+                    display: "flex",
+                    padding: "8px 0px",
+                    flexDirection: "column",
+                    gap: "4px",
+                    alignItems: "flex-start"
+                  }}>
+                    {assignedUsers.map((u, idx) => u && 
+                      <Button
+                        style={{
+                          display: "inline",
+                          fontSize: 12,
+                          color: "black",
+                          border: (selectedUserId === u.id || (selectedUserId === -1 && userData?.id === u.id))
+                            ? "1px solid rgba(0, 0, 0, 0.2)" : "none"
+                        }}
+                        onClick={() => setSelectedUserId(u.id)}>
+                          {UserMappedByRole(idx + 1).element} {u.email}
+                      </Button>
+                    )}
+                  </div>
+                : ""}
+              >
+                <Button
+                  type="default"
+                  className="lsf-button"
+                  style={{
+                    minWidth: "40px",
+                    border: "1px solid #e6e6e6",
+                    color: "grey",
+                    pt: 1, pl: 1, pr: 1,
+                    borderBottom: "None",
+                  }}
+                  > 
+                    <InfoOutlinedIcon sx={{mb: "-3px", ml: "2px", color: "grey"}}/>
+                </Button>
+              </LightTooltip>
             <Tooltip title="Go to next task">
               <Button
                 type="default"

@@ -46,8 +46,9 @@ import ReviewStageButtons from "../../component/CL-Transcription/ReviewStageButt
 import ArrowDropDownIcon from "@mui/icons-material/ArrowDropDown";
 import ArrowRightIcon from "@mui/icons-material/ArrowRight";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import UserMappedByRole from '../../../../utils/UserMappedByRole/UserMappedByRole';
 import getTaskAssignedUsers from '../../../../utils/getTaskAssignedUsers';
-import LightTooltip from "../../component/common/Tooltip"
+import LightTooltip from "../../component/common/Tooltip";
 
 const ReviewAudioTranscriptionLandingPage = () => {
   const classes = AudioTranscriptionLandingStyle();
@@ -111,9 +112,10 @@ const ReviewAudioTranscriptionLandingPage = () => {
   const reviewNotesRef = useRef(null);
   const superCheckerNotesRef = useRef(null);
   const [advancedWaveformSettings, setAdvancedWaveformSettings] = useState(false);
-  const [assignedUsers, setAssignedUsers] = useState(null);  
+  const [assignedUsers, setAssignedUsers] = useState(null);
   const [autoSave, setAutoSave] = useState(true);
   const [autoSaveTrigger, setAutoSaveTrigger] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState(-1); 
 
   // useEffect(() => {
   //   let intervalId;
@@ -311,7 +313,7 @@ const ReviewAudioTranscriptionLandingPage = () => {
 
   const handleAutosave = async () => {
     setAutoSaveTrigger(false);
-    if(!autoSave) return;
+    if(!autoSave || disableButton) return;
     const currentAnnotation = AnnotationsTaskDetails?.find((a) => a.completed_by === user.id && a.annotation_type === 2);
     if(!currentAnnotation) return;
     const reqBody = {
@@ -353,22 +355,22 @@ const ReviewAudioTranscriptionLandingPage = () => {
   }, [autoSaveTrigger, autoSave, handleAutosave, user, result, taskId, annotations, taskDetails, stdTranscription, stdTranscriptionSettings]);
   
   useEffect(() => {
-    if(!autoSave) return;
+    if(!autoSave || disableBtns) return;
 
-    const handleUpdateTimeSpent = (time = 60) => {
-      // const apiObj = new UpdateTimeSpentPerTask(taskId, time);
-      // dispatch(APITransport(apiObj));
-    };
+    /* const handleUpdateTimeSpent = (time = 60) => {
+      const apiObj = new UpdateTimeSpentPerTask(taskId, time);
+      dispatch(APITransport(apiObj));
+    }; */
 
     saveIntervalRef.current = setInterval(() => setAutoSaveTrigger(true), 60 * 1000);
-    timeSpentIntervalRef.current = setInterval(
+    /* timeSpentIntervalRef.current = setInterval(
       handleUpdateTimeSpent,
       60 * 1000
-    );
+    ); */
 
     const handleBeforeUnload = (event) => {
       setAutoSaveTrigger(true);
-      handleUpdateTimeSpent(ref.current);
+      ///handleUpdateTimeSpent(ref.current);
       event.preventDefault();
       event.returnValue = "";
       ref.current = 0;
@@ -391,7 +393,7 @@ const ReviewAudioTranscriptionLandingPage = () => {
     const interval = setInterval(checkInactivity, 1000);
 
     if(!isActive){
-      handleUpdateTimeSpent(ref.current);
+      //handleUpdateTimeSpent(ref.current);
       clearInterval(saveIntervalRef.current);
       clearInterval(timeSpentIntervalRef.current);
       ref.current = 0;
@@ -401,16 +403,16 @@ const ReviewAudioTranscriptionLandingPage = () => {
       if (!document.hidden) {
         // Tab is active, restart the autosave interval
         saveIntervalRef.current = setInterval(() => setAutoSaveTrigger(true), 60 * 1000);
-        timeSpentIntervalRef.current = setInterval(
+        /* timeSpentIntervalRef.current = setInterval(
           handleUpdateTimeSpent,
           60 * 1000
-        );
+        ); */
       } else {
         setAutoSaveTrigger(true);
-        handleUpdateTimeSpent(ref.current);
+        // handleUpdateTimeSpent(ref.current);
         // Tab is inactive, clear the autosave interval
         clearInterval(saveIntervalRef.current);
-        clearInterval(timeSpentIntervalRef.current);
+        // clearInterval(timeSpentIntervalRef.current);
         ref.current = 0;
       }
     };
@@ -422,13 +424,13 @@ const ReviewAudioTranscriptionLandingPage = () => {
       document.removeEventListener('keydown', handleInteraction);
       clearInterval(interval);
       clearInterval(saveIntervalRef.current);
-      clearInterval(timeSpentIntervalRef.current);
+      // clearInterval(timeSpentIntervalRef.current);
       window.removeEventListener("beforeunload", handleBeforeUnload);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
 
     // eslint-disable-next-line
-  }, [autoSave, user, taskId, annotations, taskDetails, isActive]);
+  }, [autoSave, user, taskId, annotations, taskDetails, isActive, disableButton]);
 
   // useEffect(() => {
   //   const apiObj = new FetchTaskDetailsAPI(taskId);
@@ -520,8 +522,28 @@ const ReviewAudioTranscriptionLandingPage = () => {
   };
 
   useEffect(() => {
+    if(selectedUserId === -1) return;
+    if(selectedUserId === user?.id) {
+      setFilterMessage("");
+      setDisableBtns(false);
+      setDisableButton(false);
+      getAnnotationsTaskData(taskId);
+      return;
+    }
+    const userAnnotations = AnnotationsTaskDetails?.filter((item) => item.completed_by === selectedUserId);
+    if(userAnnotations.length) {
+      setDisableButton(true);
+      setDisableBtns(true);
+      setFilterMessage(`This is the ${["Annotator", "Reviewer", "Super Checker"][userAnnotations[0].annotation_type - 1]}'s Annotation in read only mode`);
+      setAnnotations(userAnnotations);
+    }
+  }, [selectedUserId, user, taskId]);
+
+  useEffect(() => {
     const showAssignedUsers = async () => {
-      getTaskAssignedUsers(taskDetails).then(res => setAssignedUsers(res));
+      getTaskAssignedUsers(taskDetails).then(res => {
+        setAssignedUsers(res);
+      });
     }
     taskDetails?.id && showAssignedUsers();
   }, [taskDetails]);
@@ -1058,9 +1080,32 @@ useEffect(() => {
             <Typography sx={{mt: 2, ml: 4, color: "grey"}}>
               Task #{taskDetails?.id}
               <LightTooltip
-                title={assignedUsers ? assignedUsers : ""}
+                disableFocusListener={true}
+                title={assignedUsers ? 
+                  <div style={{
+                    display: "flex",
+                    padding: "8px 0px",
+                    flexDirection: "column",
+                    gap: "4px",
+                    alignItems: "flex-start"
+                  }}>
+                    {assignedUsers.map((u, idx) => u && 
+                      <Button
+                      style={{
+                        display: "inline",
+                        fontSize: 12,
+                        color: "black",
+                        border: (selectedUserId === u.id || (selectedUserId === -1 && user?.id === u.id))
+                          ? "1px solid rgba(0, 0, 0, 0.2)" : "none"
+                      }}
+                      onClick={() => setSelectedUserId(u.id)}>
+                        {UserMappedByRole(idx + 1).element} {u.email}
+                      </Button>
+                    )}
+                  </div>
+                : ""}
               >
-                <InfoOutlinedIcon sx={{mb: "-4px", ml: "2px", color: "grey"}}/>
+                <InfoOutlinedIcon sx={{ mb: "-4px", ml: "2px", color: "grey" }} />
               </LightTooltip>
             </Typography>
             <ReviewStageButtons
