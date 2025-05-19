@@ -6,7 +6,7 @@ const localisation = {
   newPassword:"Enter your New Password*",
   currentPassword:"Enter your Current Password*",
   "label.shoonyaInfo":
-    "DHISHA-Shoonya: DesiCrew’s advanced Shoonya-based platform for large-scale, high-quality data annotation in LLM and GenAI workflows..",
+    "Welcome to DHISHA-Shoonya: DesiCrew’s advanced Shoonya-based platform for large-scale, high-quality data annotation tailored for LLM and GenAI workflows, built on the open-source Shoonya framework with enhanced features and workflows to support complex AI and LLM development needs.",
     "button.clearAll" : "Clear All",
     "button.clear" : "Clear",
     "button.Filter" : "Filter",
